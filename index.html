@@ -55,22 +55,21 @@
     <link rel="icon" type="image/png" sizes="96x96" href="http://samouraiwallet.com/static/public/favicon/favicon-96x96.png"/>
 </head>
 <body>
-	<div id="g" style="background:#043a48; border-bottom:12px solid #c12727; width:100%; height:750px;"></div>
+	<div id="g" style="background:#043a48; border-bottom:12px solid #c12727; width:100%; height:800px;"></div>
     <div id="info"></div>
     <div id="log">
         Processed <span id="blocks">0</span> blocks since #<span id="blockHeight">0</span>, <span id="allTxs">0</span> txs, <span id="whirlpoolTxs">0</span> mixs.<br/>
         <small id="txHash"></small>
     </div>
+    <div style="float:right">&lt;scroll&gt; to zoom<br/>&lt;space&gt; to pause</div>
     <center>
         <h1>Samourai Whirlpool live</h1>
         Visualizing Whirlpool transactions from 100 last blocks and mempool (real-time).<br/>
         <span class="input-node">Green = input</span>, <span class="output-node">Red = unspent output</span>,
         <span class="input-output-node">Yellow = spent output</span>, <span class="transaction-node">Blue = mix</span>
-
     </center>
 
     <div style="font-size: 0.9em">
-        <div style="float:right">&lt;scroll&gt; to zoom<br/>&lt;space&gt; to pause</div>
 
         <br />
         <div id="output" ></div>
@@ -374,6 +373,10 @@ var events = Viva.Graph.webglInputEvents(graphics, graph),
         } 
      }
 
+     function getValue(o) {
+         return o.value || (o.prev_out ? o.prev_out.value : 0)
+     }
+
      function testWebSocket() { 
      	websocket = new WebSocket(wsUri); 
      	websocket.onopen = function(evt) { onOpen(evt) };
@@ -390,9 +393,25 @@ var events = Viva.Graph.webglInputEvents(graphics, graph),
      	
      	function onClose(evt) { writeToScreen("DISCONNECTED"); }  
 
-     	function isMix(inputs,outputs) {
+     	function isMix(inputs,outputs,txid) {
             var mock = false;
-            return mock ? Math.random()>0.5 : (inputs && outputs && inputs.length==5 && outputs.length==5)
+            if (mock) return Math.random()>0.5;
+
+            if (!inputs || !outputs || inputs.length!=5 || outputs.length!=5) return false;
+
+            const getApproxValue = i => Math.floor(getValue(i)/approx);
+
+            var approx = 10000;
+            var value = getApproxValue(inputs[0])
+            for (const o of [...inputs,...outputs]) {
+                const v = getApproxValue(o);
+                console.log("value", value,v)
+                if (value != v) {
+                    console.log('Not a mix: '+txid)
+                    return false;
+                }
+            }
+            return true;
         }
 
         function onTxs(txs) {
@@ -440,7 +459,7 @@ var events = Viva.Graph.webglInputEvents(graphics, graph),
             // uncorfimed transactions
             var inputs = tx.inputs;
             var outputs = tx.outputs || tx.out;
-            if (isMix(inputs,outputs)) {
+            if (isMix(inputs,outputs,txHash)) {
                 whirlpoolTxs++;
                 // generate from to
                 if (inputs) {
@@ -450,7 +469,7 @@ var events = Viva.Graph.webglInputEvents(graphics, graph),
                         links.push({
                             from: input.address || input.prev_out.addr,
                             to: txHash,
-                            value: input.value || input.prev_out.value,
+                            value: getValue(input),
                             t: "i",
                         });
                     }
@@ -462,7 +481,7 @@ var events = Viva.Graph.webglInputEvents(graphics, graph),
                         links.push({
                             from: txHash,
                             to: output.address || output.addr,
-                            value: output.value,
+                            value: getValue(output),
                             t: "o",
                         });
                     }
