@@ -92,6 +92,32 @@
 	minNodeSize = 1,
     maxNodeSize = 100000000;
 
+    function getPoolColor(pool) {
+        return 0x008ED2;
+        /*if (pool) {
+            switch (pool) {
+                case "0.5btc": return 0xeb3030;
+                case "0.05btc": return 0x410d0d;
+                case "0.01btc": return 0x6c1616;
+                case "0.001btc": return 0x961e1e;
+            }
+        }
+        console.error('unknown pool:',pool)
+        return "#000000";*/
+    }
+
+    function getPoolSize(pool) {
+        if (pool) {
+            switch (pool) {
+                case "0.5btc": return 500;
+                case "0.05btc": return 50;
+                case "0.01btc": return 10;
+                case "0.001btc": return 1;
+            }
+        }
+        console.error('unknown pool:',pool)
+        return 1;
+    }
 
     function log10(val) {
         return Math.log(val) / Math.LN10;
@@ -101,7 +127,7 @@
         return Math.log(val) / Math.LN2;
     }
 
-    var scaleType = "LINEAR"; //"LOG"; // LINEAR
+    var scaleType = "LOG";//"LINEAR"; //"LOG"; // LINEAR
 
     var getNodeColor = function(node) {
         // here different colors for tx, input, output, mixed and txconfirmed
@@ -112,12 +138,17 @@
         }else if(node.data && node.data.t && node.data.t == "m"){
             return 0xFFA500;
         }
-        return 0x008ED2;
+        return getPoolColor(node.data.p); //0x008ED2
     },
     
     getNodeSize = function(node){
+        var value
         if(! node.data || !node.data.s){
-            return 50;
+            value = getPoolSize(node.data.p);
+            value = value*value*value*value
+        } else {
+            value = node.data.s/100000;
+            value = value*value;
         }
         var rmin = 32;
         var rmax = 96;
@@ -125,12 +156,12 @@
 
         // linear normalization to a range rmin,rmax
         if(scaleType == "LINEAR"){
-            return rmin + (rmax - rmin) * ( (node.data.s - minNodeSize)/(maxNodeSize - minNodeSize) ) ;
+            return rmin + (rmax - rmin) * ( (value - minNodeSize)/(maxNodeSize - minNodeSize) ) ;
         }else{    
             // log normalization to a range rmin,rmax
             var min = log2(minNodeSize);
             var max = log2(maxNodeSize);
-            var val = log2( node.data.s );
+            var val = log2( value );
 
             // linear scaling from min.max -> rmin rmax
             return rmin + (rmax - rmin) * ( (val - min)/(max - min) ) ;
@@ -186,7 +217,7 @@
      })
     .link(function(link){
          var fromColor, toColor;
-         fromColor = toColor = 0x808080;
+         fromColor = toColor = 0x808080;//getPoolColor(link.data.p)
          var line = Viva.Graph.View.webglDualColorLine(fromColor, toColor);
          line.oldStart = fromColor;
          line.oldEnd = toColor;
@@ -353,9 +384,14 @@ var events = Viva.Graph.webglInputEvents(graphics, graph),
                     renderer.rerender();
                 }
             }
+            // tx node
+            node = graph.getNode(link.to);
+            if( !node ){
+                graph.addNode(link.to,{h:link.h,p:link.p});
+            }
         } else if(link.t == "o"){
             var node = graph.getNode(link.to); 
-            if( ! node){
+            if( !node){
                 graph.addNode(link.to,{s:link.value,t:link.t,h:link.h,p:link.p});
             } else {
                 // such a node alredy exists.  
@@ -365,7 +401,12 @@ var events = Viva.Graph.webglInputEvents(graphics, graph),
                     renderer.rerender();
                 }
             }
-        } 
+            // tx node
+            node = graph.getNode(link.from);
+            if( !node ){
+                graph.addNode(link.from,{h:link.h,p:link.p});
+            }
+        }
      }
 
      function getValue(o) {
