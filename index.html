@@ -2,63 +2,80 @@
 <html>
 <head>
     <meta charset="utf-8" />
-    <title>Blockchain visualisation</title>
+    <title>Samourai Whirlpool live</title>
 	
     <script type="text/javascript" src="https://code.jquery.com/jquery-1.10.2.min.js"></script>
     <script type="text/javascript" src="js/vivagraph.js"></script>  
-    <script type="text/javascript" src="js/webgl-programs.js"></script>  
+    <script type="text/javascript" src="js/webgl-programs.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-F3w7mX95PdgyTmZZMECAngseQB83DfGTowi0iMjiWaeVhAn4FJkqJByhZMI3AhiU" crossorigin="anonymous">
     <style>
     body{
         margin: 0;
         padding: 0;
         position: relative;
+        background:#054050;
+        color:#cbd7da;
     }
     .input-node{color:green;}
     .output-node{color:red;}
     .input-output-node{color:orange;}
-    .transaction-node{color:blue;}
+    .transaction-node{color:#008ed2;}
 
     #output{display:none;}
 
+    #log{
+        position: absolute;
+        left:4px;
+        top:4px;
+        padding:4px;
+        text-align:left;
+        font-size:0.8em;
+    }
     #info{
         position: absolute;
         right:4px;
         top:4px;
-        width:300px;
-        background-color: #ccc;
         padding:4px;
     }
     </style>
+
+    <link rel="shortcut icon" href="http://samouraiwallet.com/static/public/favicon/favicon.ico"/>
+    <link rel="apple-touch-icon" sizes="57x57" href="http://samouraiwallet.com/static/public/favicon/apple-icon-57x57.png"/>
+    <link rel="apple-touch-icon" sizes="60x60" href="http://samouraiwallet.com/static/public/favicon/apple-icon-60x60.png"/>
+    <link rel="apple-touch-icon" sizes="72x72" href="http://samouraiwallet.com/static/public/favicon/apple-icon-72x72.png"/>
+    <link rel="apple-touch-icon" sizes="76x76" href="http://samouraiwallet.com/static/public/favicon/apple-icon-76x76.png"/>
+    <link rel="apple-touch-icon" sizes="114x114" href="http://samouraiwallet.com/static/public/favicon/apple-icon-114x114.png"/>
+    <link rel="apple-touch-icon" sizes="120x120" href="http://samouraiwallet.com/static/public/favicon/apple-icon-120x120.png"/>
+    <link rel="apple-touch-icon" sizes="144x144" href="http://samouraiwallet.com/static/public/favicon/apple-icon-144x144.png"/>
+    <link rel="apple-touch-icon" sizes="152x152" href="http://samouraiwallet.com/static/public/favicon/apple-icon-152x152.png"/>
+    <link rel="apple-touch-icon" sizes="180x180" href="http://samouraiwallet.com/static/public/favicon/apple-icon-180x180.png"/>
+    <link rel="icon" type="image/png" sizes="192x192" href="http://samouraiwallet.com/static/public/favicon/android-icon-192x192.png"/>
+    <link rel="icon" type="image/png" sizes="16x16" href="http://samouraiwallet.com/static/public/favicon/favicon-16x16.png"/>
+    <link rel="icon" type="image/png" sizes="32x32" href="http://samouraiwallet.com/static/public/favicon/favicon-32x32.png"/>
+    <link rel="icon" type="image/png" sizes="96x96" href="http://samouraiwallet.com/static/public/favicon/favicon-96x96.png"/>
 </head>
 <body>
-	<div id="g" style="background-color:black; width:100%; height:600px;"></div> 
-    <div id="info">Addred/Transaction details (hover over nodes)</div>
-    <p>About: Visualization of bitcoin transactions (unconfirmed ones).</p>
-    <span>Node size scale: </span>
-    <label>LINEAR</label>
-    <input type="radio" name="scaleType" value="LINEAR" />
-    <label>LOG</label>
-    <input type="radio" name="scaleType" value="LOG" checked />
-    <br />
-    LEGEND:
-    <span class="input-node">Green = input</span>, <span class="output-node">Red = output</span>, 
-    <span class="input-output-node">Yellow = input+output</span>, <span class="transaction-node">Blue = transaction</span>
-    <br />
-    NAVIGATION: mouse + scroll = pan/zoom, SPACE = run/pause
-    <br />
-    TODO: 
-    <pre>
-    - auto remove transactions older then x min or verified 
-    - show transaction details on hover 
-    - connect disconect button 
-    - listen for a specyfic address and color it and display alert when present
-    - render graph for specyfic address/transaction
-    - categorise transactions (simple, payments, mixing etc )
-    </pre>
-    <div id="output" ></div>
-    <p>This visualisation was possible thanks to blockchain.info api and vivagraph.js library.</p>
-    
-    
+	<div id="g" style="background:#043a48; border-bottom:12px solid #c12727; width:100%; height:700px;"></div>
+    <div id="info"></div>
+    <div id="log">Initializing...</div>
+    <center><h1>Samourai Whirlpool transactions</h1></center>
+
+    <div style="font-size: 0.9em">
+        <div style="float:right">&lt;scroll&gt; to zoom<br/>&lt;space&gt; to pause</div>
+
+        <span class="input-node">Green = input</span>, <span class="output-node">Red = unspent output</span>,
+        <span class="input-output-node">Yellow = spent output</span>, <span class="transaction-node">Blue = transaction</span>
+        <br />
+        <div id="output" ></div>
+        Scanned mempool since: <span id="since"></span>.<br/>
+        Scanned <span id="blocks"></span> blocks since: <span id="blockHeight"></span><br/>
+        Scanned <span id="allTxs"></span> txs, last: <span id="txHash"></span>.<br/>
+        <span id="whirlpoolTxs"></span> mixs found.
+    </div>
+    <br/>
+    <br/>
+    <center><small style="color:#ccc"><a href="https://samouraiwallet.com">SamouraiWallet</a> - Visualization forked from <a href="https://dailyblockchain.github.io/" target="_blank">dailyblockchain.github.io</a></small></center>
+
 </body>
     <script language="javascript" type="text/javascript">  
     // viva graph part 
@@ -90,7 +107,7 @@
         return Math.log(val) / Math.LN2;
     }
 
-    var scaleType = "LOG"; // LINEAR
+    var scaleType = "LINEAR"; //"LOG"; // LINEAR
 
     var getNodeColor = function(node) {
         // here different colors for tx, input, output, mixed and txconfirmed
@@ -126,45 +143,32 @@
         }
     },
     getNodeDetails = function(node){
-        // 
-        // http://blockchain.info/rawtx/$tx_index?format=json
-        var label = "transaction";
+        var label = "Mix transaction";
         var id = node.id;
+        var value = undefined
         if(node.data && node.data.t){
+            value = node.data.s
+            id='<a href="https://oxt.me/address/'+id+'" target="_blank">'+id+'</a>';
             if(node.data.t == "i"){
                 // input node
-                label = "input";
+                label = "Input";
             }else if(node.data.t == "o"){
                 // output node
-                label = "output";
+                label = "Output";
             }else if(node.data.t == "mix"){
                 // node which is both input and output
-                label = "input/output";
+                label = "Input+output";
             }
-            
-            // for addresses infor cors not enabled :-( 
-            // enabled for blocks
-            
-            var balance = 0;
-            //lets get balance
-            $.ajax({
-                //url:"http://blockchain.info/address/"+id+"?format=json&limit=1&cors=true",
-                //url:"http://blockchain.info/rawblock/123?cors=true&format=json",
-                url:"https://blockchain.info/q/addressbalance/"+id+"?cors=true",
-                async:false,
-                crossDomain:true,
-                dataType:"text",
-                success:function(text){
-                    balance = text/100000000;
-                }
-            });
-            
-            document.getElementById("info").innerHTML = label+"<br/>"+id+"<br/>balance: "+balance +" BTC";
 
         }else{
             // transaction node
-            document.getElementById("info").innerHTML = label+"<br/>"+id;
+            id='<a href="https://oxt.me/transaction/'+id+'" target="_blank">'+id+'</a>';
         }
+        var html = "<h4>"+label+"</h4><small>"+id
+        if (value) {
+            html += "<br/>Value: "+(value/100000000)+" BTC";
+        }
+        document.getElementById("info").innerHTML = html
     };
 
     // need to get these 2 from yavis.reddit.min.js
@@ -173,8 +177,15 @@
 
     graphics
     .node(function(node){
-        var img = Viva.Graph.View.webglSquare(getNodeSize(node), getNodeColor(node));
-        return img;
+        if (false && node.data) {
+            /*return Viva.Graph.svg('image')
+                .attr('width', 24)
+                .attr('height', 24)
+                .link(node.data.url);*/
+
+        } else {
+            return Viva.Graph.View.webglSquare(getNodeSize(node), getNodeColor(node));
+        }
      })
     .link(function(link){
          var fromColor, toColor;
@@ -192,7 +203,7 @@
        //prerender  : 10
     });
 
-
+    var blocks=0, blockHeight='', allTxs = 0, whirlpoolTxs = 0, since=new Date().toISOString(), log='';
 
 var events = Viva.Graph.webglInputEvents(graphics, graph),
     lastHovered = null,
@@ -211,7 +222,7 @@ var events = Viva.Graph.webglInputEvents(graphics, graph),
      }
     };
                  
-    events.mouseEnter(function(node){
+    events.click(function(node){
         
 	    getNodeDetails(node);
 
@@ -260,7 +271,61 @@ var events = Viva.Graph.webglInputEvents(graphics, graph),
     if (document.location.protocol.indexOf("https") === 0) {
       wsUri = "wss://ws.blockchain.info/inv"; 
     }
-    var output;  
+    var output;
+
+
+    function getMempool() {
+        return $.getJSON('https://api.haskoin.com/btc/mempool?notx=false&limit=50000', data => {
+            console.log('MEMPOOL', data)
+            return data
+        })
+    }
+    function getLastBlock() {
+        return $.getJSON('https://api.haskoin.com/btc/block/best?notx=true', data => {
+            console.log('BEST', data)
+            return data
+        })
+    }
+    function getLatestBlocks() {
+        return $.getJSON('https://api.haskoin.com/btc/block/latest?notx=true', data => {
+            console.log('BLOCKS', data)
+            return data
+        })
+    }
+    function getBlockTxs(id) {
+        return $.getJSON('https://api.haskoin.com/btc/transactions/block/' + id, data => {
+            console.log('BLOCKTXS '+id, data)
+            return data
+        })
+    }
+    async function loadTxs(txids) {
+        const myTxs = [];
+        var x=0;
+        while(myTxs.length < 1000 && txids.length>0) {
+            for (var i = 0; i < 100; i++) {
+                myTxs.push(txids.pop())
+            }
+            console.log('loadTxs #'+x)
+            await $.getJSON('https://api.haskoin.com/btc/transactions', {txids: txids.join(',')}, data => {
+                console.log('TXS', data)
+                return data
+            }).then(txs => onTxs(txs))
+            x++;
+        }
+    }
+    async function loadBlocks(blks) {
+        for (const block of blks) {
+            const txs = await getBlockTxs(block.hash)
+            onTxs(txs)
+            blocks++;
+            blockHeight = block.height
+            log = 'Loaded block #'+blockHeight
+            $('#blocks').html(blocks)
+            $('#blockHeight').html(blockHeight)
+            $('#log').html(log)
+        }
+    }
+    getLatestBlocks().then(blocks => loadBlocks(blocks))
      
      function init() { 
      	output = document.getElementById("output"); 
@@ -283,7 +348,7 @@ var events = Viva.Graph.webglInputEvents(graphics, graph),
         if(link.t == "i"){
             var node = graph.getNode(link.from); 
             if( !node ){
-                graph.addNode(link.from,{s:link.value,t:link.t});
+                graph.addNode(link.from,{s:link.value,t:link.t,url:link.url});
             } else {
                 // such a node already exists
                 if(node.data && node.data.t && node.data.t == "o" ){
@@ -295,7 +360,7 @@ var events = Viva.Graph.webglInputEvents(graphics, graph),
         } else if(link.t == "o"){
             var node = graph.getNode(link.to); 
             if( ! node){
-                graph.addNode(link.to,{s:link.value,t:link.t});
+                graph.addNode(link.to,{s:link.value,t:link.t,url:link.url});
             } else {
                 // such a node alredy exists.  
                 if(node.data && node.data.t && node.data.t == "i"){
@@ -312,7 +377,9 @@ var events = Viva.Graph.webglInputEvents(graphics, graph),
      	websocket.onopen = function(evt) { onOpen(evt) };
      	websocket.onclose = function(evt) { onClose(evt) }; 
      	websocket.onmessage = function(evt) { onMessage(evt) };
-     	websocket.onerror = function(evt) { onError(evt) }; }  
+     	websocket.onerror = function(evt) { onError(evt) }; }
+
+     	$('#since').html(since)
 
      	function onOpen(evt) { 
      		writeToScreen("CONNECTED"); 
@@ -320,63 +387,97 @@ var events = Viva.Graph.webglInputEvents(graphics, graph),
      	}
      	
      	function onClose(evt) { writeToScreen("DISCONNECTED"); }  
-     	
-     	function onMessage(evt) { 
-     		// parse message
-     		var msg = JSON.parse(evt.data);
-     		var txHash = msg.x.hash;
-            if(msg.op == "utx"){
-     			// uncorfimed transactions
-     			var inputs = msg.x.inputs;
-     			var outputs = msg.x.out;
-     			// generate from to 
-     			var links = [];
-     			for(var i=0;i<inputs.length;i++){
-     				var input = inputs[i];
-     				links.push({
-                        from: input.prev_out.addr,
-                        to: txHash,
-                        value: input.prev_out.value,
-                        t:"i"
-                    });
-                }
-                for(var j=0;j<outputs.length;j++){
-     				var output = outputs[j];
-     				links.push({
-     					from: txHash,
-     					to: output.addr,
-     					value: output.value,
-                        t:"o"
-     				});
-     			}
-     		}
 
+     	function isMix(inputs,outputs) {
+            var mock = false;
+            return mock ? Math.random()>0.5 : (inputs && outputs && inputs.length==5 && outputs.length==5)
+        }
+
+        function onTxs(txs) {
+            var links = []
+            for (const tx of txs) {
+                links.push(...onTx(tx))
+            }
+            console.log('txs',links, txs)
 
             // flush the buffer if not empty
             if (! paused && linksBuffer.length > 0) {
                 for(var i=0;i<linksBuffer.length;i++){
                     var link = linksBuffer[i];
-                    
+
                     addNodes(link)
                     graph.addLink(link.from,link.to);
                 }
                 linksBuffer = [];
             }
-            
+
             for(var i=0;i<links.length;i++){
-     			var link = links[i];
-     			if(link.value > maxNodeSize){
-                        maxNodeSize = link.value;
+                var link = links[i];
+                if(link.value > maxNodeSize){
+                    maxNodeSize = link.value;
                 }
-                    
+
                 if (! paused) {
                     addNodes(link);
                     graph.addLink(link.from,link.to);
-     			} else{
+                } else{
                     // add links to a buffer
                     linksBuffer.push(link);
                 }
-                //writeToScreen('<span style="color: blue;">from: ' + link.from+' to ' +link.to+' value: '+ (link.value/100000000)+'</span>'); 
+                //writeToScreen('<span style="color: blue;">from: ' + link.from+' to ' +link.to+' value: '+ (link.value/100000000)+'</span>');
+            }
+        }
+
+        function onTx(tx) {
+            var links = [];
+            var txHash = tx.txid || tx.hash;
+            allTxs++;
+            $('#txHash').html(txHash)
+            $('#allTxs').html(allTxs)
+            $('#whirlpoolTxs').html(whirlpoolTxs)
+            // uncorfimed transactions
+            var inputs = tx.inputs;
+            var outputs = tx.outputs || tx.out;
+            if (isMix(inputs,outputs)) {
+                whirlpoolTxs++;
+                // generate from to
+                if (inputs) {
+                    for (var i = 0; i < inputs.length; i++) {
+                        var input = inputs[i];
+                        //$('<img/>')[0].src = url;
+                        links.push({
+                            from: input.address || input.prev_out.addr,
+                            to: txHash,
+                            value: input.value || input.prev_out.value,
+                            t: "i",
+                        });
+                    }
+                }
+                if (outputs) {
+                    for (var j = 0; j < outputs.length; j++) {
+                        var output = outputs[j];
+                        //$('<img/>')[0].src = url;
+                        links.push({
+                            from: txHash,
+                            to: output.address || output.addr,
+                            value: output.value,
+                            t: "o",
+                        });
+                    }
+                }
+            }
+            if (links.length>0) {
+                console.log('tx: ' + txHash, links)
+            }
+            return links
+        }
+
+     	function onMessage(evt) {
+     		// parse message
+     		var msg = JSON.parse(evt.data);
+     		console.log('onMessage',msg)
+            if(msg.op == "utx"){
+                onTxs([msg.x])
      		}
      		//websocket.close(); 
      	}
