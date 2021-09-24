@@ -56,15 +56,19 @@
 	<div id="g" style="background:#043a48; border-bottom:12px solid #c12727; width:100%; height:800px;"></div>
     <div id="info"></div>
     <div id="log">
-        Processed <span id="blocks">0</span> blocks since #<span id="blockHeight">0</span>, <span id="allTxs">0</span> txs, <span id="whirlpoolTxs">0</span> mixs.<br/>
+        Processed <span id="blocks">0</span> blocks since #<span id="blockHeight">0</span>, <span id="allTxs">0</span> txs.<br/>
         <small id="txHash"></small>
     </div>
     <div style="float:right">&lt;scroll&gt; to zoom<br/>&lt;space&gt; to pause</div>
     <center>
         <h1>Samourai Whirlpool live</h1>
         Visualizing Whirlpool transactions from 100 last blocks and mempool (real-time).<br/>
+
         <span class="input-node">Green = input</span>, <span class="output-node">Red = unspent output</span>,
-        <span class="input-output-node">Yellow = spent output</span>, <span class="transaction-node">Blue = mix</span>
+        <span class="input-output-node">Yellow = spent output</span><br/>
+
+        <span class="transaction-node"><span id="whirlpoolTxs">0</span> mixs</span>,
+        <!--<span style="color:#29efef"><span id="tx0s">0</span> tx0s</span>, --><span style="color:#ff7100"><span id="spends">0</span> postmix spends</span>
     </center>
 
     <br/><br/>
@@ -138,20 +142,43 @@
         }else if(node.data && node.data.t && node.data.t == "m"){
             return 0xFFA500;
         }
-        return getPoolColor(node.data.p); //0x008ED2
+
+        if (node.data.tt == TXTYPE.SPEND) {
+            return 0xff7100;
+        } else if (node.data.tt == TXTYPE.TX0) {
+            return 0x29efef;
+        }
+        return 0x008ED2; //getPoolColor(node.data.p); //0x008ED2
+    },
+
+    getLinkColor = function(link) {
+        if (link.data.tt == TXTYPE.SPEND) {
+            return 0xFF0000;
+        } else if (link.data.tt == TXTYPE.TX0) {
+            return 0x00FF00;
+        }
+        return 0x808080; //getPoolColor(node.data.p); //0x008ED2
     },
     
     getNodeSize = function(node){
         var value
-        if(! node.data || !node.data.s){
-            value = getPoolSize(node.data.p);
-            value = value*value*value*value
+        if(!node.data.s){
+            // tx
+            value = node.data.tv;
+            //console.log('size tx',value)
         } else {
-            value = node.data.s/100000;
-            value = value*value;
+            // outpoint
+            value = node.data.s;
+            //console.log('size outpoint',value)
         }
-        var rmin = 32;
-        var rmax = 96;
+
+        value = value*value*value
+
+        //value = node.data.s/100000;
+        //value = value*value;
+
+        var rmin = 1;
+        var rmax = 25;
         
 
         // linear normalization to a range rmin,rmax
@@ -169,20 +196,20 @@
     },
     getNodeDetails = function(node){
         console.log('details',node);
-        var label = "Mix transaction";
+        var label = "transaction";
         var id = '';
         if(node.data && node.data.t){
             // input/output
             id += 'Address: <a href="https://oxt.me/address/' + node.id + '" target="_blank">' + node.id + '</a><br/>';
             if(node.data.t == "i"){
                 // input node
-                label = "Mix input";
+                label = "input";
             }else if(node.data.t == "o"){
                 // output node
-                label = "Unspent mix output";
+                label = "unspent output";
             }else if(node.data.t == "mix"){
                 // node which is both input and output
-                label = "Remixed output";
+                label = "spent output";
             }
 
         }else{
@@ -192,9 +219,11 @@
         var linkData = node.data ? node.data : node.links[0].data
         id += 'Tx: <small><a href="https://oxt.me/transaction/' + linkData.h + '" target="_blank">' + linkData.h + '</a></small><br/>';
         id += 'Pool: '+linkData.p;
-        var html = "<h4>"+label+"</h4><small>"+id
-        if (node.data && node.data.s) {
+        var html = "<h4>"+linkData.tt+' '+label+"</h4><small>"+id
+        if (node.data.s) {
             html += "<br/>Value: "+(node.data.s/100000000)+" BTC";
+        } else {
+            html += "<br/>Volume: "+(node.data.tv/100000000)+" BTC";
         }
         document.getElementById("info").innerHTML = html
     };
@@ -205,19 +234,20 @@
 
     graphics
     .node(function(node){
-        if (false && node.data) {
-            /*return Viva.Graph.svg('image')
+        return Viva.Graph.View.webglSquare(getNodeSize(node), getNodeColor(node));
+        /*if (false && node.data) {
+            return Viva.Graph.svg('image')
                 .attr('width', 24)
                 .attr('height', 24)
-                .link(node.data.url);*/
+                .link(node.data.url);
 
         } else {
             return Viva.Graph.View.webglSquare(getNodeSize(node), getNodeColor(node));
-        }
+        }*/
      })
     .link(function(link){
          var fromColor, toColor;
-         fromColor = toColor = 0x808080;//getPoolColor(link.data.p)
+         fromColor = toColor = getLinkColor(link);//0x808080;//getPoolColor(link.data.p)
          var line = Viva.Graph.View.webglDualColorLine(fromColor, toColor);
          line.oldStart = fromColor;
          line.oldEnd = toColor;
@@ -231,9 +261,9 @@
        //prerender  : 10
     });
 
-    var blocks = 0, blockHeight='', allTxs = 0, whirlpoolTxs = 0, since=new Date().toISOString();
+    var blocks = 0, blockHeight='', allTxs = 0, whirlpoolTxs = 0, spends = 0, tx0s = 0, since=new Date().toISOString();
 
-var events = Viva.Graph.webglInputEvents(graphics, graph),
+    var events = Viva.Graph.webglInputEvents(graphics, graph),
     lastHovered = null,
 
     colorLinks = function(node, color) {
@@ -323,7 +353,7 @@ var events = Viva.Graph.webglInputEvents(graphics, graph),
     }
     function getBlockTxs(id) {
         return $.getJSON('https://api.haskoin.com/btc/transactions/block/' + id, data => {
-            console.log('BLOCKTXS '+id, data)
+            console.log('BLOCKTXS '+id)
             return data
         })
     }
@@ -336,7 +366,7 @@ var events = Viva.Graph.webglInputEvents(graphics, graph),
             }
             console.log('loadTxs #'+x)
             await $.getJSON('https://api.haskoin.com/btc/transactions', {txids: txids.join(',')}, data => {
-                console.log('TXS', data)
+                //console.log('TXS', data)
                 return data
             }).then(txs => onTxs(txs))
             x++;
@@ -371,11 +401,11 @@ var events = Viva.Graph.webglInputEvents(graphics, graph),
      };
 
      function addNodes(link){
-        
+
         if(link.t == "i"){
             var node = graph.getNode(link.from); 
             if( !node ){
-                graph.addNode(link.from,{s:link.value,t:link.t,h:link.h,p:link.p});
+                graph.addNode(link.from,{s:link.value,t:link.t,tt:link.tt,h:link.h,p:link.p, tv:link.tv});
             } else {
                 // such a node already exists
                 if(node.data && node.data.t && node.data.t == "o" ){
@@ -387,12 +417,12 @@ var events = Viva.Graph.webglInputEvents(graphics, graph),
             // tx node
             node = graph.getNode(link.to);
             if( !node ){
-                graph.addNode(link.to,{h:link.h,p:link.p});
+                graph.addNode(link.to,{h:link.h, p:link.p, tt:link.tt, tv:link.tv});
             }
         } else if(link.t == "o"){
             var node = graph.getNode(link.to); 
             if( !node){
-                graph.addNode(link.to,{s:link.value,t:link.t,h:link.h,p:link.p});
+                graph.addNode(link.to,{s:link.value,t:link.t,tt:link.tt,h:link.h,p:link.p, tv:link.tv});
             } else {
                 // such a node alredy exists.  
                 if(node.data && node.data.t && node.data.t == "i"){
@@ -404,7 +434,7 @@ var events = Viva.Graph.webglInputEvents(graphics, graph),
             // tx node
             node = graph.getNode(link.from);
             if( !node ){
-                graph.addNode(link.from,{h:link.h,p:link.p});
+                graph.addNode(link.from,{h:link.h, p:link.p, tt:link.tt, tv:link.tv});
             }
         }
      }
@@ -412,6 +442,128 @@ var events = Viva.Graph.webglInputEvents(graphics, graph),
      function getValue(o) {
          return o.value || (o.prev_out ? o.prev_out.value : 0)
      }
+
+     var ADDRESSES_MIX_INPUTS = {}
+     var ADDRESSES_TX0_OUTPUTS = {}
+
+     var ADDRESSES_MIX_OUTPUTS = {}
+     var ADDRESSES_SPEND_INPUTS = {}
+
+     const TXTYPE = {
+         MIX: 'MIX',
+         SPEND: 'SPEND',
+         TX0: 'TX0'
+     };
+
+    const POOL_DENOMINATIONS = [100000,1000000,5000000,50000000]
+
+    function toDenomination(value) {
+        return Math.floor(value/APPROX_FACTOR)*APPROX_FACTOR;
+    }
+    function isMixInputValue(value) {
+        for (const d of POOL_DENOMINATIONS) {
+            if (d == toDenomination(value)) {
+                return true;
+            }
+        }
+        return false;
+    }
+    function isMixOutputValue(value) {
+        for (const d of POOL_DENOMINATIONS) {
+            if (d == value) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function isMix(inputs,outputs,txid) {
+        var mock = false;
+        if (mock) return Math.random()>0.5;
+
+        if (!inputs || !outputs || inputs.length!=5 || outputs.length!=5) return false;
+
+        for (const i of inputs) {
+            const value = getValue(i)
+            if (!isMixInputValue(value)) {
+                console.log('Not a mix input: '+txid, value)
+                return false;
+            }
+        }
+        for (const o of outputs) {
+            const value = getValue(o)
+            if (!isMixOutputValue(value)) {
+                console.log('Not a mix output: '+txid, value)
+                return false;
+            }
+        }
+        return true;
+    }
+
+    function getAddress(o) {
+        const addr = o.address || o.addr || (o.prev_out ? o.prev_out.addr : o.pkscript)
+        /*if (!addr && !o.coinbase) {
+            console.warn('addr',addr,o)
+        }*/
+        return addr;
+    }
+
+    function isPostmixSpend(inputs,outputs,txid) {
+        if (!inputs || !outputs) return false;
+
+        for (const o of inputs) {
+            const addr = getAddress(o)
+            if (ADDRESSES_MIX_OUTPUTS[addr]) {
+                // found spend linked to a mix
+                return 1;
+            }
+
+            const value = getValue(o)
+            if (isMixOutputValue(value)) {
+                // found potential spend
+                return -1;
+            }
+        }
+        return 0;
+    }
+
+    function isTx0(inputs,outputs,txid) {
+        if (!inputs || !outputs || outputs.length<3) return false;
+
+        let nonPremixs=0;
+        let opReturns=0;
+        let fees=0;
+        for (const o of outputs) {
+            const addr = getAddress(o)
+            if (ADDRESSES_MIX_INPUTS[addr]) {
+                // found tx0 linked to a mix
+                return 1;
+            }
+
+            const value = getValue(o)
+            if (value == 0) {
+                opReturns++;
+                if (opReturns>0) {
+                    return 0;
+                }
+            }
+            else if (value <= 2500000) {
+                fees++;
+            }
+            if (!isMixInputValue(value)) {
+                nonPremixs++;
+                /*if (nonPremixs>2) {
+                    return 0;
+                }*/
+            }
+        }
+        if (fees < 1 || opReturns != 1 || nonPremixs < 2) {
+            return 0;
+        }
+
+        // found potential tx0
+        return -1;
+    }
 
      function testWebSocket() { 
      	websocket = new WebSocket(wsUri); 
@@ -428,31 +580,12 @@ var events = Viva.Graph.webglInputEvents(graphics, graph),
      	
      	function onClose(evt) {  }
 
-     	function findPool(inputs,outputs,txid) {
-            var mock = false;
-            if (mock) return Math.random()>0.5;
-
-            if (!inputs || !outputs || inputs.length!=5 || outputs.length!=5) return false;
-
-            const getApproxValue = i => Math.floor(getValue(i)/APPROX_FACTOR);
-
-            var value = getApproxValue(inputs[0])
-            for (const o of [...inputs,...outputs]) {
-                const v = getApproxValue(o);
-                if (value != v) {
-                    console.log('Not a mix: '+txid, value, v)
-                    return false;
-                }
-            }
-            return value;
-        }
-
         function onTxs(txs) {
             var links = []
             for (const tx of txs) {
                 links.push(...onTx(tx))
             }
-            console.log('txs',links, txs)
+            //console.log('txs',links, txs)
 
             // flush the buffer if not empty
             if (! paused && linksBuffer.length > 0) {
@@ -487,38 +620,39 @@ var events = Viva.Graph.webglInputEvents(graphics, graph),
             allTxs++;
             $('#txHash').html(txHash)
             $('#allTxs').html(allTxs)
-            $('#whirlpoolTxs').html(whirlpoolTxs)
             // uncorfimed transactions
             var inputs = tx.inputs;
             var outputs = tx.outputs || tx.out;
-            if (findPool(inputs,outputs,txHash)) {
-                var pool = (Math.floor(getValue(inputs[0])/APPROX_FACTOR)*APPROX_FACTOR/100000000)+"btc"
+            if (isMix(inputs,outputs,txHash)) {
+                links = addTx(inputs, outputs, txHash, TXTYPE.MIX);
+
                 whirlpoolTxs++;
-                // generate from to
-                if (inputs) {
-                    for (var i = 0; i < inputs.length; i++) {
-                        var input = inputs[i];
-                        links.push({
-                            from: input.address || input.prev_out.addr,
-                            to: txHash,
-                            value: getValue(input),
-                            t: "i",
-                            p: pool,
-                            h: txHash
-                        });
-                    }
-                }
-                if (outputs) {
-                    for (var j = 0; j < outputs.length; j++) {
-                        var output = outputs[j];
-                        links.push({
-                            from: txHash,
-                            to: output.address || output.addr,
-                            value: getValue(output),
-                            t: "o",
-                            p: pool,
-                            h: txHash
-                        });
+                $('#whirlpoolTxs').html(whirlpoolTxs)
+            }
+            else {
+                const spend = isPostmixSpend(inputs, outputs, txHash);
+                if (spend == 1) {
+                    console.log('found real spend: ' + txHash)
+                    links = addTx(inputs, outputs, txHash, TXTYPE.SPEND);
+
+                    spends++;
+                    $('#spends').html(spends)
+                } else if (spend == -1) {
+                    console.log('found potential spend: ' + txHash)
+
+                    //links = addTx(inputs, outputs, txHash, TXTYPE.SPEND);
+                } else {
+                    const tx0 = isTx0(inputs, outputs, txHash)
+                    if (tx0 == 1) {
+                        console.log('found real tx0: '+txHash)
+                        links = addTx(inputs, outputs, txHash, TXTYPE.TX0);
+
+                        tx0s++;
+                        $('#tx0s').html(tx0s)
+                    } else if (tx0 == -1) {
+                        console.log('found potential tx0: '+txHash)
+
+                        //links = addTx(inputs, outputs, txHash, TXTYPE.TX0);
                     }
                 }
             }
@@ -528,10 +662,61 @@ var events = Viva.Graph.webglInputEvents(graphics, graph),
             return links
         }
 
+        function addTx(inputs, outputs, txHash, txType) {
+            const links = []
+            var pool = (Math.floor(getValue(inputs[0])/APPROX_FACTOR)*APPROX_FACTOR/100000000)+"btc"
+            var totalValue = outputs.map(o => getValue(o)).reduce((a,b)=>a+b,0);
+            // generate from to
+            if (inputs) {
+                for (var i = 0; i < inputs.length; i++) {
+                    var input = inputs[i];
+                    const addr = getAddress(input);
+                    const value = getValue(input);
+                    links.push({
+                        from: addr,
+                        to: txHash,
+                        value: value,
+                        tv: totalValue,
+                        t: "i",
+                        tt: txType,
+                        p: pool,
+                        h: txHash
+                    });
+                    if (txType == TXTYPE.MIX) {
+                        ADDRESSES_MIX_INPUTS[addr] = true;
+                    } else if (txType == TXTYPE.SPEND) {
+                        ADDRESSES_SPEND_INPUTS[addr] = true
+                    }
+                }
+            }
+            if (outputs) {
+                for (var j = 0; j < outputs.length; j++) {
+                    var output = outputs[j];
+                    const addr = getAddress(output);
+                    links.push({
+                        from: txHash,
+                        to: addr,
+                        value: getValue(output),
+                        tv: totalValue,
+                        t: "o",
+                        tt: txType,
+                        p: pool,
+                        h: txHash
+                    });
+                    if (txType == TXTYPE.MIX) {
+                        ADDRESSES_MIX_OUTPUTS[addr] = true;
+                    } else if (txType == TXTYPE.TX0) {
+                        ADDRESSES_TX0_OUTPUTS[addr] = true
+                    }
+                }
+            }
+            return links
+        }
+
      	function onMessage(evt) {
      		// parse message
      		var msg = JSON.parse(evt.data);
-     		console.log('onMessage',msg)
+     		//console.log('onMessage',msg)
             if(msg.op == "utx"){
                 onTxs([msg.x])
      		}
@@ -550,13 +735,6 @@ var events = Viva.Graph.webglInputEvents(graphics, graph),
         window.l = layout;
         window.g = graph;
         window.r = renderer;
-     	
-        $("input[name='scaleType']").change(function(){
-            scaleType = this.value;
-            graph.forEachNode(function(node){
-                node.ui.size =  getNodeSize(node);
-            })
-        });
         </script> 
 
 
