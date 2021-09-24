@@ -449,6 +449,8 @@
      var ADDRESSES_MIX_OUTPUTS = {}
      var ADDRESSES_SPEND_INPUTS = {}
 
+    var LINKS_UNCONFIRMED = {}
+
      const TXTYPE = {
          MIX: 'MIX',
          SPEND: 'SPEND',
@@ -565,6 +567,18 @@
         return -1;
     }
 
+    function confirmUnconfirmeds(txids, links) {
+        if (txids) {
+            for (const txid of txids) {
+                const unconfirmedLinks = LINKS_UNCONFIRMED[txid]
+                if (unconfirmedLinks) {
+                    console.log('confirmed '+txid,unconfirmedLinks)
+                    links.push(...unconfirmedLinks)
+                }
+            }
+        }
+    }
+
      function testWebSocket() { 
      	websocket = new WebSocket(wsUri); 
      	websocket.onopen = function(evt) { onOpen(evt) };
@@ -633,26 +647,26 @@
                 const spend = isPostmixSpend(inputs, outputs, txHash);
                 if (spend == 1) {
                     console.log('found real spend: ' + txHash)
-                    links = addTx(inputs, outputs, txHash, TXTYPE.SPEND);
+                    links = addTx(inputs, outputs, txHash, TXTYPE.SPEND, true);
 
                     spends++;
                     $('#spends').html(spends)
                 } else if (spend == -1) {
                     console.log('found potential spend: ' + txHash)
 
-                    //links = addTx(inputs, outputs, txHash, TXTYPE.SPEND);
+                    addTx(inputs, outputs, txHash, TXTYPE.SPEND, false);
                 } else {
                     const tx0 = isTx0(inputs, outputs, txHash)
                     if (tx0 == 1) {
                         console.log('found real tx0: '+txHash)
-                        links = addTx(inputs, outputs, txHash, TXTYPE.TX0);
+                        links = addTx(inputs, outputs, txHash, TXTYPE.TX0, true);
 
                         tx0s++;
                         $('#tx0s').html(tx0s)
                     } else if (tx0 == -1) {
                         console.log('found potential tx0: '+txHash)
 
-                        //links = addTx(inputs, outputs, txHash, TXTYPE.TX0);
+                        addTx(inputs, outputs, txHash, TXTYPE.TX0, false);
                     }
                 }
             }
@@ -662,7 +676,7 @@
             return links
         }
 
-        function addTx(inputs, outputs, txHash, txType) {
+        function addTx(inputs, outputs, txHash, txType, confirmed) {
             const links = []
             var pool = (Math.floor(getValue(inputs[0])/APPROX_FACTOR)*APPROX_FACTOR/100000000)+"btc"
             var totalValue = outputs.map(o => getValue(o)).reduce((a,b)=>a+b,0);
@@ -684,8 +698,16 @@
                     });
                     if (txType == TXTYPE.MIX) {
                         ADDRESSES_MIX_INPUTS[addr] = true;
+
+                        // confirm tx0s
+                        const txidsToConfirm = ADDRESSES_TX0_OUTPUTS[addr];
+                        confirmUnconfirmeds(txidsToConfirm, links)
+                        delete ADDRESSES_TX0_OUTPUTS[addr];
                     } else if (txType == TXTYPE.SPEND) {
-                        ADDRESSES_SPEND_INPUTS[addr] = true
+                        if (!ADDRESSES_SPEND_INPUTS[addr]) {
+                            ADDRESSES_SPEND_INPUTS[addr] = []
+                        }
+                        ADDRESSES_SPEND_INPUTS[addr].push(txHash)
                     }
                 }
             }
@@ -704,11 +726,22 @@
                         h: txHash
                     });
                     if (txType == TXTYPE.MIX) {
-                        ADDRESSES_MIX_OUTPUTS[addr] = true;
+                        ADDRESSES_MIX_OUTPUTS[addr] = true
+
+                        // confirm spends
+                        const txidsToConfirm = ADDRESSES_SPEND_INPUTS[addr];
+                        confirmUnconfirmeds(txidsToConfirm, links)
+                        delete ADDRESSES_SPEND_INPUTS[addr];
                     } else if (txType == TXTYPE.TX0) {
-                        ADDRESSES_TX0_OUTPUTS[addr] = true
+                        if (!ADDRESSES_TX0_OUTPUTS[addr]) {
+                            ADDRESSES_TX0_OUTPUTS[addr] = []
+                        }
+                        ADDRESSES_TX0_OUTPUTS[addr].push(txHash)
                     }
                 }
+            }
+            if (!confirmed) {
+                LINKS_UNCONFIRMED[txHash] = links
             }
             return links
         }
