@@ -65,7 +65,7 @@
         Visualizing Whirlpool transactions from 100 last blocks and mempool (real-time).<br/>
 
         <span style="color:#00FF00"><span id="NODE_PREMIX">0</span> premixs</span>, <span style="color:#FF0000"><span id="NODE_POSTMIX">0</span> postmixs unspent</span>,
-        <span style="color:#f68888"><span id="NODE_POSTMIX_SPEND">0</span> postmixs spent</span>, <span style="color:#999999"><span id="NODE_TX0_INPUT">0</span> tx0 inputs</span><br/>
+        <span style="color:#fde7e7"><span id="NODE_POSTMIX_SPEND">0</span> postmixs spent</span>, <span style="color:#999999"><span id="NODE_TX0_INPUT">0</span> tx0 inputs</span><br/>
 
         <span style="color:#008ED2"><span id="TX_MIX">0</span> mixs</span>,
         <span style="color:#29efef"><span id="TX_TX0">0</span> tx0s</span>, <span style="color:#f57900"><span id="TX_SPEND">0</span> postmix spends</span>
@@ -165,7 +165,7 @@
                 case NODE_TYPE.PREMIX: return 0x00FF00;
                 case NODE_TYPE.POSTMIX: return 0xFF0000;
                 case NODE_TYPE.TX0_INPUT: return 0x999999;
-                case NODE_TYPE.POSTMIX_SPEND: return 0xf68888;
+                case NODE_TYPE.POSTMIX_SPEND: return 0xfde7e7;
                 default: return 0xFFA500;
             }
         }
@@ -434,7 +434,7 @@
             // such a node already exists
             if(node.data && node.data.t && nodeType == NODE_TYPE.POSTMIX){
                 node.data.t = NODE_TYPE.POSTMIX_SPEND;
-                node.ui.color = 0xf68888;
+                node.ui.color = 0xfde7e7;
                 renderer.rerender();
                 counts[nodeType]--;
                 incr(NODE_TYPE.POSTMIX_SPEND, false);
