@@ -64,18 +64,43 @@
         <h1>Samourai Whirlpool live</h1>
         Visualizing Whirlpool transactions from 100 last blocks and mempool (real-time).<br/>
 
-        <span class="input-node">Green = input</span>, <span class="output-node">Red = unspent output</span>,
-        <span class="input-output-node">Yellow = spent output</span><br/>
+        <span style="color:#00FF00"><span id="NODE_PREMIX">0</span> premixs</span>, <span class="output-node"><span style="color:#FF0000">0</span> unspent postmixs</span>,
+        <span style="color:#FFFFFF"><span id="NODE_POSTMIX_SPEND">0</span> spent postmixs</span>, <span style="color:#999999"><span id="NODE_TX0_INPUT">0</span> tx0 inputs</span><br/>
 
-        <span class="transaction-node"><span id="whirlpoolTxs">0</span> mixs</span>,
-        <!--<span style="color:#29efef"><span id="tx0s">0</span> tx0s</span>, --><span style="color:#ff7100"><span id="spends">0</span> postmix spends</span>
+        <span style="color:#008ED2"><span id="TX_MIX">0</span> mixs</span>,
+        <span style="color:#29efef"><span id="TX_TX0">0</span> tx0s</span>, <span style="color:#f57900"><span id="TX_SPEND">0</span> postmix spends</span>
     </center>
 
-    <br/><br/>
+    <br/>
     <center><small style="color:#ccc"><a href="https://samouraiwallet.com">SamouraiWallet</a> - Visualization forked from <a href="https://dailyblockchain.github.io/" target="_blank">dailyblockchain.github.io</a></small></center>
 
 </body>
-    <script language="javascript" type="text/javascript">  
+    <script language="javascript" type="text/javascript">
+
+    var ADDRESSES_MIX_INPUTS = {}
+    var ADDRESSES_TX0_OUTPUTS = {}
+
+    var ADDRESSES_MIX_OUTPUTS = {}
+    var ADDRESSES_SPEND_INPUTS = {}
+
+    var LINKS_UNCONFIRMED = {}
+
+    const TX_TYPE = {
+        MIX: 'MIX',
+        SPEND: 'SPEND',
+        TX0: 'TX0'
+    };
+    const NODE_TYPE = {
+        PREMIX: 'PREMIX',
+        TX0_INPUT: 'TX0_INPUT',
+        POSTMIX: 'POSTMIX',
+        POSTMIX_SPEND: 'POSTMIX_SPEND'
+    };
+
+    const POOL_DENOMINATIONS = [100000,1000000,5000000,50000000];
+
+
+
     // viva graph part 
     var graphics = Viva.Graph.View.webglGraphics();
     
@@ -134,27 +159,30 @@
     var scaleType = "LOG";//"LINEAR"; //"LOG"; // LINEAR
 
     var getNodeColor = function(node) {
-        // here different colors for tx, input, output, mixed and txconfirmed
-        if(node.data && node.data.t && node.data.t == "i"){ 
-            return 0x00FF00;
-        }else if(node.data && node.data.t && node.data.t == "o"){
-            return 0xFF0000;
-        }else if(node.data && node.data.t && node.data.t == "m"){
-            return 0xFFA500;
+        // outpoint
+        if (node.data.t) {
+            switch (node.data.t) {
+                case NODE_TYPE.PREMIX: return 0x00FF00;
+                case NODE_TYPE.POSTMIX: return 0xFF0000;
+                case NODE_TYPE.TX0_INPUT: return 0x999999;
+                case NODE_TYPE.POSTMIX_SPEND: return 0xFFFFFF;
+                default: return 0xFFA500;
+            }
         }
 
-        if (node.data.tt == TXTYPE.SPEND) {
-            return 0xff7100;
-        } else if (node.data.tt == TXTYPE.TX0) {
-            return 0x29efef;
+        // tx
+        switch (node.data.tt) {
+            case TX_TYPE.SPEND: return 0xf57900;
+            case TX_TYPE.TX0: return 0x29efef;
+            case TX_TYPE.MIX: return 0x008ED2;
         }
-        return 0x008ED2; //getPoolColor(node.data.p); //0x008ED2
+        console.error("unknown nodeColor", node)
     },
 
     getLinkColor = function(link) {
-        if (link.data.tt == TXTYPE.SPEND) {
+        if (link.data.tt == TX_TYPE.SPEND) {
             return 0xFF0000;
-        } else if (link.data.tt == TXTYPE.TX0) {
+        } else if (link.data.tt == TX_TYPE.TX0) {
             return 0x00FF00;
         }
         return 0x808080; //getPoolColor(node.data.p); //0x008ED2
@@ -201,25 +229,16 @@
         if(node.data && node.data.t){
             // input/output
             id += 'Address: <a href="https://oxt.me/address/' + node.id + '" target="_blank">' + node.id + '</a><br/>';
-            if(node.data.t == "i"){
-                // input node
-                label = "input";
-            }else if(node.data.t == "o"){
-                // output node
-                label = "unspent output";
-            }else if(node.data.t == "mix"){
-                // node which is both input and output
-                label = "spent output";
-            }
-
+            label = node.data.t;
         }else{
             // transaction node
             id='';
+            label = node.data.tt+' transaction';
         }
         var linkData = node.data ? node.data : node.links[0].data
         id += 'Tx: <small><a href="https://oxt.me/transaction/' + linkData.h + '" target="_blank">' + linkData.h + '</a></small><br/>';
         id += 'Pool: '+linkData.p;
-        var html = "<h4>"+linkData.tt+' '+label+"</h4><small>"+id
+        var html = "<h4>"+label+"</h4><small>"+id
         if (node.data.s) {
             html += "<br/>Value: "+(node.data.s/100000000)+" BTC";
         } else {
@@ -261,7 +280,14 @@
        //prerender  : 10
     });
 
-    var blocks = 0, blockHeight='', allTxs = 0, whirlpoolTxs = 0, spends = 0, tx0s = 0, since=new Date().toISOString();
+    var blocks = 0, blockHeight='', allTxs = 0, since=new Date().toISOString();
+    var counts = {};
+    for (const t of Object.values(TX_TYPE)) {
+        counts[t] = 0;
+    }
+    for (const t of Object.values(NODE_TYPE)) {
+        counts[t] = 0;
+    }
 
     var events = Viva.Graph.webglInputEvents(graphics, graph),
     lastHovered = null,
@@ -332,7 +358,10 @@
     }
     var output;
 
-
+    function incr(type, isTx) {
+        counts[type]++;
+        $('#'+(isTx?'TX':'NODE')+'_'+type).html(counts[type]);
+    }
     function getMempool() {
         return $.getJSON('https://api.haskoin.com/btc/mempool?notx=false&limit=50000', data => {
             console.log('MEMPOOL', data)
@@ -387,55 +416,46 @@
      function init() { 
      	output = document.getElementById("output"); 
      	testWebSocket();
-     }  
-     
+     }
 
-     var colorNodes = function(node, color) {
-         if (node && node.id) {
-             graph.forEachNode(function(node){
-                if (color) { 
-                    node.ui.color = color;
-                }
-            });
-         }
-     };
+    function addNodeTx(id, link, txType) {
+        let node = graph.getNode(id);
+        if( !node ){
+            graph.addNode(id,{h:link.h, p:link.p, tt:link.tt, tv:link.tv});
+            incr(txType, true);
+        }
+    }
+    function addNode(id, link, nodeType) {
+        var node = graph.getNode(id);
+        if( !node ){
+            graph.addNode(id,{s:link.value,t:link.t,tt:link.tt,h:link.h,p:link.p, tv:link.tv});
+            incr(nodeType, false);
+        } else {
+            // such a node already exists
+            if(node.data && node.data.t && nodeType == NODE_TYPE.POSTMIX){
+                node.data.t = NODE_TYPE.POSTMIX_SPEND;
+                node.ui.color = 0xFFFFFF;
+                renderer.rerender();
+                counts[nodeType]--;
+                incr(NODE_TYPE.POSTMIX_SPEND, true);
+            }
+        }
+    }
 
      function addNodes(link){
 
-        if(link.t == "i"){
-            var node = graph.getNode(link.from); 
-            if( !node ){
-                graph.addNode(link.from,{s:link.value,t:link.t,tt:link.tt,h:link.h,p:link.p, tv:link.tv});
-            } else {
-                // such a node already exists
-                if(node.data && node.data.t && node.data.t == "o" ){
-                    node.data.t = "mix";
-                    node.ui.color = 16776960;
-                    renderer.rerender();
-                }
-            }
+        if(link.isInput){
+            // outpoint
+            addNode(link.from, link, link.t);
+
             // tx node
-            node = graph.getNode(link.to);
-            if( !node ){
-                graph.addNode(link.to,{h:link.h, p:link.p, tt:link.tt, tv:link.tv});
-            }
-        } else if(link.t == "o"){
-            var node = graph.getNode(link.to); 
-            if( !node){
-                graph.addNode(link.to,{s:link.value,t:link.t,tt:link.tt,h:link.h,p:link.p, tv:link.tv});
-            } else {
-                // such a node alredy exists.  
-                if(node.data && node.data.t && node.data.t == "i"){
-                    node.data.t = "mix";
-                    node.ui.color = 16776960;
-                    renderer.rerender();
-                }
-            }
+            addNodeTx(link.to, link, link.tt);
+        } else {
+            // outpoint
+            addNode(link.to, link, link.t);
+
             // tx node
-            node = graph.getNode(link.from);
-            if( !node ){
-                graph.addNode(link.from,{h:link.h, p:link.p, tt:link.tt, tv:link.tv});
-            }
+            addNodeTx(link.from, link, link.tt);
         }
      }
 
@@ -443,21 +463,17 @@
          return o.value || (o.prev_out ? o.prev_out.value : 0)
      }
 
-     var ADDRESSES_MIX_INPUTS = {}
-     var ADDRESSES_TX0_OUTPUTS = {}
-
-     var ADDRESSES_MIX_OUTPUTS = {}
-     var ADDRESSES_SPEND_INPUTS = {}
-
-    var LINKS_UNCONFIRMED = {}
-
-     const TXTYPE = {
-         MIX: 'MIX',
-         SPEND: 'SPEND',
-         TX0: 'TX0'
-     };
-
-    const POOL_DENOMINATIONS = [100000,1000000,5000000,50000000]
+     function getNodeType(txType, isInput) {
+         switch (txType) {
+            case TX_TYPE.MIX:
+                return isInput ? NODE_TYPE.PREMIX : NODE_TYPE.POSTMIX;
+             case TX_TYPE.TX0:
+                 return isInput ? NODE_TYPE.TX0_INPUT : NODE_TYPE.PREMIX;
+             case TX_TYPE.SPEND:
+                 return isInput ? NODE_TYPE.POSTMIX : NODE_TYPE.POSTMIX_SPEND;
+         }
+         console.error('unknown nodeType', txType, isInput)
+     }
 
     function toDenomination(value) {
         return Math.floor(value/APPROX_FACTOR)*APPROX_FACTOR;
@@ -545,7 +561,7 @@
             const value = getValue(o)
             if (value == 0) {
                 opReturns++;
-                if (opReturns>0) {
+                if (opReturns>1) {
                     return 0;
                 }
             }
@@ -554,12 +570,13 @@
             }
             if (!isMixInputValue(value)) {
                 nonPremixs++;
-                /*if (nonPremixs>2) {
-                    return 0;
-                }*/
             }
         }
         if (fees < 1 || opReturns != 1 || nonPremixs < 2) {
+            return 0;
+        }
+        if (nonPremixs>3) {
+            //console.log('not a tx0: '+txid,nonPremixs)
             return 0;
         }
 
@@ -567,12 +584,12 @@
         return -1;
     }
 
-    function confirmUnconfirmeds(txids, links) {
+    function confirmUnconfirmeds(txids, links, txType) {
         if (txids) {
             for (const txid of txids) {
                 const unconfirmedLinks = LINKS_UNCONFIRMED[txid]
                 if (unconfirmedLinks) {
-                    console.log('confirmed '+txid,unconfirmedLinks)
+                    console.log('confirmed '+txType+' '+txid,unconfirmedLinks)
                     links.push(...unconfirmedLinks)
                 }
             }
@@ -638,35 +655,23 @@
             var inputs = tx.inputs;
             var outputs = tx.outputs || tx.out;
             if (isMix(inputs,outputs,txHash)) {
-                links = addTx(inputs, outputs, txHash, TXTYPE.MIX);
-
-                whirlpoolTxs++;
-                $('#whirlpoolTxs').html(whirlpoolTxs)
+                links = addTx(inputs, outputs, txHash, TX_TYPE.MIX, true);
+                incr(TX_TYPE.MIX, true);
             }
             else {
                 const spend = isPostmixSpend(inputs, outputs, txHash);
                 if (spend == 1) {
-                    console.log('found real spend: ' + txHash)
-                    links = addTx(inputs, outputs, txHash, TXTYPE.SPEND, true);
-
-                    spends++;
-                    $('#spends').html(spends)
+                    links = addTx(inputs, outputs, txHash, TX_TYPE.SPEND, true);
+                    incr(TX_TYPE.SPEND, true);
                 } else if (spend == -1) {
-                    console.log('found potential spend: ' + txHash)
-
-                    addTx(inputs, outputs, txHash, TXTYPE.SPEND, false);
+                    addTx(inputs, outputs, txHash, TX_TYPE.SPEND, false);
                 } else {
                     const tx0 = isTx0(inputs, outputs, txHash)
                     if (tx0 == 1) {
-                        console.log('found real tx0: '+txHash)
-                        links = addTx(inputs, outputs, txHash, TXTYPE.TX0, true);
-
-                        tx0s++;
-                        $('#tx0s').html(tx0s)
+                        links = addTx(inputs, outputs, txHash, TX_TYPE.TX0, true);
+                        incr(TX_TYPE.TX0, true);
                     } else if (tx0 == -1) {
-                        console.log('found potential tx0: '+txHash)
-
-                        addTx(inputs, outputs, txHash, TXTYPE.TX0, false);
+                        addTx(inputs, outputs, txHash, TX_TYPE.TX0, false);
                     }
                 }
             }
@@ -691,19 +696,20 @@
                         to: txHash,
                         value: value,
                         tv: totalValue,
-                        t: "i",
+                        t: getNodeType(txType, true),
                         tt: txType,
                         p: pool,
-                        h: txHash
+                        h: txHash,
+                        isInput: true
                     });
-                    if (txType == TXTYPE.MIX) {
+                    if (txType == TX_TYPE.MIX) {
                         ADDRESSES_MIX_INPUTS[addr] = true;
 
                         // confirm tx0s
                         const txidsToConfirm = ADDRESSES_TX0_OUTPUTS[addr];
-                        confirmUnconfirmeds(txidsToConfirm, links)
+                        confirmUnconfirmeds(txidsToConfirm, links, TX_TYPE.TX0)
                         delete ADDRESSES_TX0_OUTPUTS[addr];
-                    } else if (txType == TXTYPE.SPEND) {
+                    } else if (txType == TX_TYPE.SPEND) {
                         if (!ADDRESSES_SPEND_INPUTS[addr]) {
                             ADDRESSES_SPEND_INPUTS[addr] = []
                         }
@@ -720,19 +726,20 @@
                         to: addr,
                         value: getValue(output),
                         tv: totalValue,
-                        t: "o",
+                        t: getNodeType(txType, false),
                         tt: txType,
                         p: pool,
-                        h: txHash
+                        h: txHash,
+                        isInput: false
                     });
-                    if (txType == TXTYPE.MIX) {
+                    if (txType == TX_TYPE.MIX) {
                         ADDRESSES_MIX_OUTPUTS[addr] = true
 
                         // confirm spends
                         const txidsToConfirm = ADDRESSES_SPEND_INPUTS[addr];
-                        confirmUnconfirmeds(txidsToConfirm, links)
+                        confirmUnconfirmeds(txidsToConfirm, links, TX_TYPE.SPEND)
                         delete ADDRESSES_SPEND_INPUTS[addr];
-                    } else if (txType == TXTYPE.TX0) {
+                    } else if (txType == TX_TYPE.TX0) {
                         if (!ADDRESSES_TX0_OUTPUTS[addr]) {
                             ADDRESSES_TX0_OUTPUTS[addr] = []
                         }
@@ -743,6 +750,7 @@
             if (!confirmed) {
                 LINKS_UNCONFIRMED[txHash] = links
             }
+            console.log('add '+txType+' '+(confirmed?'confirmed':'unconfirmed')+' '+txHash)
             return links
         }
 
