@@ -64,8 +64,8 @@
         <h1>Samourai Whirlpool live</h1>
         Visualizing Whirlpool transactions from 100 last blocks and mempool (real-time).<br/>
 
-        <span style="color:#00FF00"><span id="NODE_PREMIX">0</span> premixs</span>, <span class="output-node"><span style="color:#FF0000">0</span> unspent postmixs</span>,
-        <span style="color:#FFFFFF"><span id="NODE_POSTMIX_SPEND">0</span> spent postmixs</span>, <span style="color:#999999"><span id="NODE_TX0_INPUT">0</span> tx0 inputs</span><br/>
+        <span style="color:#00FF00"><span id="NODE_PREMIX">0</span> premixs</span>, <span class="output-node"><span style="color:#FF0000">0</span> postmixs unspent</span>,
+        <span style="color:#f68888"><span id="NODE_POSTMIX_SPEND">0</span> postmixs spent</span>, <span style="color:#999999"><span id="NODE_TX0_INPUT">0</span> tx0 inputs</span><br/>
 
         <span style="color:#008ED2"><span id="TX_MIX">0</span> mixs</span>,
         <span style="color:#29efef"><span id="TX_TX0">0</span> tx0s</span>, <span style="color:#f57900"><span id="TX_SPEND">0</span> postmix spends</span>
@@ -165,7 +165,7 @@
                 case NODE_TYPE.PREMIX: return 0x00FF00;
                 case NODE_TYPE.POSTMIX: return 0xFF0000;
                 case NODE_TYPE.TX0_INPUT: return 0x999999;
-                case NODE_TYPE.POSTMIX_SPEND: return 0xFFFFFF;
+                case NODE_TYPE.POSTMIX_SPEND: return 0xf68888;
                 default: return 0xFFA500;
             }
         }
@@ -434,10 +434,10 @@
             // such a node already exists
             if(node.data && node.data.t && nodeType == NODE_TYPE.POSTMIX){
                 node.data.t = NODE_TYPE.POSTMIX_SPEND;
-                node.ui.color = 0xFFFFFF;
+                node.ui.color = 0xf68888;
                 renderer.rerender();
                 counts[nodeType]--;
-                incr(NODE_TYPE.POSTMIX_SPEND, true);
+                incr(NODE_TYPE.POSTMIX_SPEND, false);
             }
         }
     }
@@ -656,20 +656,17 @@
             var outputs = tx.outputs || tx.out;
             if (isMix(inputs,outputs,txHash)) {
                 links = addTx(inputs, outputs, txHash, TX_TYPE.MIX, true);
-                incr(TX_TYPE.MIX, true);
             }
             else {
                 const spend = isPostmixSpend(inputs, outputs, txHash);
                 if (spend == 1) {
                     links = addTx(inputs, outputs, txHash, TX_TYPE.SPEND, true);
-                    incr(TX_TYPE.SPEND, true);
                 } else if (spend == -1) {
                     addTx(inputs, outputs, txHash, TX_TYPE.SPEND, false);
                 } else {
                     const tx0 = isTx0(inputs, outputs, txHash)
                     if (tx0 == 1) {
                         links = addTx(inputs, outputs, txHash, TX_TYPE.TX0, true);
-                        incr(TX_TYPE.TX0, true);
                     } else if (tx0 == -1) {
                         addTx(inputs, outputs, txHash, TX_TYPE.TX0, false);
                     }
