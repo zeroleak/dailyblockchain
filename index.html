@@ -65,7 +65,7 @@
         Visualizing Whirlpool transactions from 100 last blocks and mempool (real-time).<br/>
 
         <span style="color:#00FF00"><span id="NODE_PREMIX">0</span> premixs</span>, <span style="color:#FF0000"><span id="NODE_POSTMIX">0</span> postmixs unspent</span>,
-        <span style="color:#fde7e7"><span id="NODE_POSTMIX_SPEND">0</span> postmixs spent</span>, <span style="color:#999999"><span id="NODE_TX0_INPUT">0</span> tx0 inputs</span><br/>
+        <span style="color:#fde7e7"><span id="NODE_POSTMIX_SPEND">0</span> postmixs spent</span>, <span style="color:#999999"><span id="NODE_TX0_INPUT">0</span> tx0 inputs</span>, <span style="color:#333333"><span id="NODE_TX0_CHANGE">0</span> tx0 changes</span><br/>
 
         <span style="color:#008ED2"><span id="TX_MIX">0</span> mixs</span>,
         <span style="color:#29efef"><span id="TX_TX0">0</span> tx0s</span>, <span style="color:#f57900"><span id="TX_SPEND">0</span> postmix spends</span>
@@ -93,6 +93,7 @@
     const NODE_TYPE = {
         PREMIX: 'PREMIX',
         TX0_INPUT: 'TX0_INPUT',
+        TX0_CHANGE: 'TX0_CHANGE',
         POSTMIX: 'POSTMIX',
         POSTMIX_SPEND: 'POSTMIX_SPEND'
     };
@@ -165,6 +166,7 @@
                 case NODE_TYPE.PREMIX: return 0x00FF00;
                 case NODE_TYPE.POSTMIX: return 0xFF0000;
                 case NODE_TYPE.TX0_INPUT: return 0x999999;
+                case NODE_TYPE.TX0_CHANGE: return 0x333333;
                 case NODE_TYPE.POSTMIX_SPEND: return 0xfde7e7;
                 default: return 0xFFA500;
             }
@@ -463,16 +465,38 @@
          return o.value || (o.prev_out ? o.prev_out.value : 0)
      }
 
-     function getNodeType(txType, isInput) {
+     function getNodeType(txType, isInput, n) {
          switch (txType) {
             case TX_TYPE.MIX:
                 return isInput ? NODE_TYPE.PREMIX : NODE_TYPE.POSTMIX;
              case TX_TYPE.TX0:
-                 return isInput ? NODE_TYPE.TX0_INPUT : NODE_TYPE.PREMIX;
+                 return isInput ? NODE_TYPE.TX0_INPUT : (n > 1 ? NODE_TYPE.PREMIX : NODE_TYPE.TX0_CHANGE);
              case TX_TYPE.SPEND:
                  return isInput ? NODE_TYPE.POSTMIX : NODE_TYPE.POSTMIX_SPEND;
          }
          console.error('unknown nodeType', txType, isInput)
+     }
+
+     function findAnyPremix(inputs, outputs, txType) {
+         switch (txType) {
+             case TX_TYPE.TX0: return outputs[2];
+             case TX_TYPE.MIX: return outputs[0];
+             case TX_TYPE.SPEND:
+                 for (const input of inputs) {
+                     for (const d of POOL_DENOMINATIONS) {
+                         if (input.value == d) {
+                             return input;
+                         }
+                     }
+                     return undefined
+                 }
+         }
+     }
+
+     function getPool(inputs, outputs, txType) {
+        const premix = findAnyPremix(inputs, outputs, txType);
+        if (!premix) return undefined
+        return (Math.floor(getValue(premix)/APPROX_FACTOR)*APPROX_FACTOR/100000000)+"btc"
      }
 
     function toDenomination(value) {
@@ -680,7 +704,7 @@
 
         function addTx(inputs, outputs, txHash, txType, confirmed) {
             const links = []
-            var pool = (Math.floor(getValue(inputs[0])/APPROX_FACTOR)*APPROX_FACTOR/100000000)+"btc"
+            var pool = getPool(inputs, outputs, txType)
             var totalValue = outputs.map(o => getValue(o)).reduce((a,b)=>a+b,0);
             // generate from to
             if (inputs) {
@@ -693,7 +717,7 @@
                         to: txHash,
                         value: value,
                         tv: totalValue,
-                        t: getNodeType(txType, true),
+                        t: getNodeType(txType, true, i),
                         tt: txType,
                         p: pool,
                         h: txHash,
@@ -723,7 +747,7 @@
                         to: addr,
                         value: getValue(output),
                         tv: totalValue,
-                        t: getNodeType(txType, false),
+                        t: getNodeType(txType, false, j),
                         tt: txType,
                         p: pool,
                         h: txHash,
