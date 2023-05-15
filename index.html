@@ -523,7 +523,7 @@
         var mock = false;
         if (mock) return Math.random()>0.5;
 
-        if (!inputs || !outputs || inputs.length!=5 || outputs.length!=5) return false;
+        if (!inputs || !outputs || inputs.length!= outputs.length || inputs.length <5 || inputs.length>8) return false;
 
         for (const i of inputs) {
             const value = getValue(i)
